@@ -6,20 +6,42 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
-  CreditCard,
-  PiggyBank,
-  Receipt,
+  Pencil,
+  Trash2,
   Wallet,
+  Receipt,
+  PiggyBank,
+  CreditCard,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-type Entry = {
+type IncomeEntry = {
+  id: string;
+  title: string;
+  amount: number;
+  entry_date: string;
+};
+
+type ExpenseEntry = {
   id: string;
   title: string;
   amount: number;
   entry_date: string;
   category?: string | null;
 };
+
+const expenseCategories = [
+  "Housing",
+  "Food",
+  "Transport",
+  "Bills",
+  "Shopping",
+  "Health",
+  "Entertainment",
+  "Travel",
+  "Subscriptions",
+  "Other",
+];
 
 function getMonthInputValue(date: Date) {
   const year = date.getFullYear();
@@ -38,6 +60,13 @@ function getMonthRange(monthValue: string) {
   };
 }
 
+function getYearRange(monthValue: string) {
+  const [year] = monthValue.split("-").map(Number);
+  const start = `${year}-01-01`;
+  const end = `${year + 1}-01-01`;
+  return { start, end };
+}
+
 export default function EntriesPage() {
   const router = useRouter();
 
@@ -45,8 +74,10 @@ export default function EntriesPage() {
   const [userId, setUserId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(getMonthInputValue(new Date()));
 
-  const [incomeEntries, setIncomeEntries] = useState<Entry[]>([]);
-  const [expenseEntries, setExpenseEntries] = useState<Entry[]>([]);
+  const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
+  const [expenseEntries, setExpenseEntries] = useState<ExpenseEntry[]>([]);
+  const [yearIncomeEntries, setYearIncomeEntries] = useState<IncomeEntry[]>([]);
+  const [yearExpenseEntries, setYearExpenseEntries] = useState<ExpenseEntry[]>([]);
 
   const [incomeTitle, setIncomeTitle] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
@@ -54,11 +85,14 @@ export default function EntriesPage() {
 
   const [expenseTitle, setExpenseTitle] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseCategory, setExpenseCategory] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("Other");
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [savingIncome, setSavingIncome] = useState(false);
   const [savingExpense, setSavingExpense] = useState(false);
+
+  const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -81,31 +115,51 @@ export default function EntriesPage() {
   useEffect(() => {
     if (!userId) return;
 
-    const loadMonthData = async () => {
-      const { start, end } = getMonthRange(selectedMonth);
+    const loadData = async () => {
+      const monthRange = getMonthRange(selectedMonth);
+      const yearRange = getYearRange(selectedMonth);
 
-      const [incomeRes, expenseRes] = await Promise.all([
+      const [
+        incomeMonthRes,
+        expenseMonthRes,
+        incomeYearRes,
+        expenseYearRes,
+      ] = await Promise.all([
         supabase
           .from("income_entries")
           .select("id,title,amount,entry_date")
           .eq("user_id", userId)
-          .gte("entry_date", start)
-          .lt("entry_date", end)
+          .gte("entry_date", monthRange.start)
+          .lt("entry_date", monthRange.end)
           .order("entry_date", { ascending: false }),
         supabase
           .from("expense_entries")
           .select("id,title,amount,entry_date,category")
           .eq("user_id", userId)
-          .gte("entry_date", start)
-          .lt("entry_date", end)
+          .gte("entry_date", monthRange.start)
+          .lt("entry_date", monthRange.end)
           .order("entry_date", { ascending: false }),
+        supabase
+          .from("income_entries")
+          .select("id,title,amount,entry_date")
+          .eq("user_id", userId)
+          .gte("entry_date", yearRange.start)
+          .lt("entry_date", yearRange.end),
+        supabase
+          .from("expense_entries")
+          .select("id,title,amount,entry_date,category")
+          .eq("user_id", userId)
+          .gte("entry_date", yearRange.start)
+          .lt("entry_date", yearRange.end),
       ]);
 
-      setIncomeEntries((incomeRes.data as Entry[]) ?? []);
-      setExpenseEntries((expenseRes.data as Entry[]) ?? []);
+      setIncomeEntries((incomeMonthRes.data as IncomeEntry[]) ?? []);
+      setExpenseEntries((expenseMonthRes.data as ExpenseEntry[]) ?? []);
+      setYearIncomeEntries((incomeYearRes.data as IncomeEntry[]) ?? []);
+      setYearExpenseEntries((expenseYearRes.data as ExpenseEntry[]) ?? []);
     };
 
-    loadMonthData();
+    loadData();
   }, [userId, selectedMonth]);
 
   const monthIncome = useMemo(
@@ -118,13 +172,72 @@ export default function EntriesPage() {
     [expenseEntries]
   );
 
-  const monthBalance = monthIncome - monthExpenses;
+  const yearIncome = useMemo(
+    () => yearIncomeEntries.reduce((sum, item) => sum + Number(item.amount), 0),
+    [yearIncomeEntries]
+  );
 
-  const handleAddIncome = async (e: React.FormEvent) => {
+  const yearExpenses = useMemo(
+    () => yearExpenseEntries.reduce((sum, item) => sum + Number(item.amount), 0),
+    [yearExpenseEntries]
+  );
+
+  const monthBalance = monthIncome - monthExpenses;
+  const yearBalance = yearIncome - yearExpenses;
+
+  const resetIncomeForm = () => {
+    setIncomeTitle("");
+    setIncomeAmount("");
+    setIncomeDate(new Date().toISOString().slice(0, 10));
+    setEditingIncomeId(null);
+  };
+
+  const resetExpenseForm = () => {
+    setExpenseTitle("");
+    setExpenseAmount("");
+    setExpenseCategory("Other");
+    setExpenseDate(new Date().toISOString().slice(0, 10));
+    setEditingExpenseId(null);
+  };
+
+  const handleAddOrUpdateIncome = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId || !incomeTitle.trim() || !incomeAmount) return;
 
     setSavingIncome(true);
+
+    if (editingIncomeId) {
+      const { data, error } = await supabase
+        .from("income_entries")
+        .update({
+          title: incomeTitle.trim(),
+          amount: Number(incomeAmount),
+          entry_date: incomeDate,
+        })
+        .eq("id", editingIncomeId)
+        .eq("user_id", userId)
+        .select("id,title,amount,entry_date")
+        .single();
+
+      setSavingIncome(false);
+      if (error || !data) return;
+
+      const updated = data as IncomeEntry;
+      const updatedMonth = updated.entry_date.slice(0, 7);
+
+      if (updatedMonth === selectedMonth) {
+        setIncomeEntries((prev) =>
+          prev
+            .map((item) => (item.id === editingIncomeId ? updated : item))
+            .sort((a, b) => +new Date(b.entry_date) - +new Date(a.entry_date))
+        );
+      } else {
+        setIncomeEntries((prev) => prev.filter((item) => item.id !== editingIncomeId));
+      }
+
+      resetIncomeForm();
+      return;
+    }
 
     const { data, error } = await supabase
       .from("income_entries")
@@ -138,24 +251,58 @@ export default function EntriesPage() {
       .single();
 
     setSavingIncome(false);
-
     if (error || !data) return;
 
-    const entryMonth = incomeDate.slice(0, 7);
-    if (entryMonth === selectedMonth) {
-      setIncomeEntries((prev) => [data as Entry, ...prev]);
+    if (incomeDate.slice(0, 7) === selectedMonth) {
+      setIncomeEntries((prev) =>
+        [data as IncomeEntry, ...prev].sort(
+          (a, b) => +new Date(b.entry_date) - +new Date(a.entry_date)
+        )
+      );
     }
 
-    setIncomeTitle("");
-    setIncomeAmount("");
-    setIncomeDate(new Date().toISOString().slice(0, 10));
+    resetIncomeForm();
   };
 
-  const handleAddExpense = async (e: React.FormEvent) => {
+  const handleAddOrUpdateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId || !expenseTitle.trim() || !expenseAmount) return;
 
     setSavingExpense(true);
+
+    if (editingExpenseId) {
+      const { data, error } = await supabase
+        .from("expense_entries")
+        .update({
+          title: expenseTitle.trim(),
+          amount: Number(expenseAmount),
+          category: expenseCategory,
+          entry_date: expenseDate,
+        })
+        .eq("id", editingExpenseId)
+        .eq("user_id", userId)
+        .select("id,title,amount,entry_date,category")
+        .single();
+
+      setSavingExpense(false);
+      if (error || !data) return;
+
+      const updated = data as ExpenseEntry;
+      const updatedMonth = updated.entry_date.slice(0, 7);
+
+      if (updatedMonth === selectedMonth) {
+        setExpenseEntries((prev) =>
+          prev
+            .map((item) => (item.id === editingExpenseId ? updated : item))
+            .sort((a, b) => +new Date(b.entry_date) - +new Date(a.entry_date))
+        );
+      } else {
+        setExpenseEntries((prev) => prev.filter((item) => item.id !== editingExpenseId));
+      }
+
+      resetExpenseForm();
+      return;
+    }
 
     const { data, error } = await supabase
       .from("expense_entries")
@@ -163,25 +310,67 @@ export default function EntriesPage() {
         user_id: userId,
         title: expenseTitle.trim(),
         amount: Number(expenseAmount),
-        category: expenseCategory.trim() || null,
+        category: expenseCategory,
         entry_date: expenseDate,
       })
       .select("id,title,amount,entry_date,category")
       .single();
 
     setSavingExpense(false);
-
     if (error || !data) return;
 
-    const entryMonth = expenseDate.slice(0, 7);
-    if (entryMonth === selectedMonth) {
-      setExpenseEntries((prev) => [data as Entry, ...prev]);
+    if (expenseDate.slice(0, 7) === selectedMonth) {
+      setExpenseEntries((prev) =>
+        [data as ExpenseEntry, ...prev].sort(
+          (a, b) => +new Date(b.entry_date) - +new Date(a.entry_date)
+        )
+      );
     }
 
-    setExpenseTitle("");
-    setExpenseAmount("");
-    setExpenseCategory("");
-    setExpenseDate(new Date().toISOString().slice(0, 10));
+    resetExpenseForm();
+  };
+
+  const handleDeleteIncome = async (id: string) => {
+    const previous = incomeEntries;
+    setIncomeEntries((prev) => prev.filter((item) => item.id !== id));
+
+    const { error } = await supabase
+      .from("income_entries")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) setIncomeEntries(previous);
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    const previous = expenseEntries;
+    setExpenseEntries((prev) => prev.filter((item) => item.id !== id));
+
+    const { error } = await supabase
+      .from("expense_entries")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) setExpenseEntries(previous);
+  };
+
+  const startEditIncome = (item: IncomeEntry) => {
+    setEditingIncomeId(item.id);
+    setIncomeTitle(item.title);
+    setIncomeAmount(String(item.amount));
+    setIncomeDate(item.entry_date);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const startEditExpense = (item: ExpenseEntry) => {
+    setEditingExpenseId(item.id);
+    setExpenseTitle(item.title);
+    setExpenseAmount(String(item.amount));
+    setExpenseCategory(item.category || "Other");
+    setExpenseDate(item.entry_date);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   if (loading) {
@@ -234,7 +423,7 @@ export default function EntriesPage() {
               </div>
               <div>
                 <h3>Monthly filter</h3>
-                <p>Review and manage your data month by month</p>
+                <p>Review everything month by month</p>
               </div>
             </div>
           </div>
@@ -266,13 +455,32 @@ export default function EntriesPage() {
               <strong>£{monthBalance.toFixed(2)}</strong>
             </div>
             <div className="small-card">
-              <p>Total entries</p>
+              <p>Entries this month</p>
               <strong>{incomeEntries.length + expenseEntries.length}</strong>
+            </div>
+          </div>
+
+          <div className="dashboard-balance-grid entries-year-summary">
+            <div className="small-card">
+              <p>Income this year</p>
+              <strong>£{yearIncome.toFixed(2)}</strong>
+            </div>
+            <div className="small-card">
+              <p>Expenses this year</p>
+              <strong>£{yearExpenses.toFixed(2)}</strong>
+            </div>
+            <div className="small-card">
+              <p>Balance this year</p>
+              <strong>£{yearBalance.toFixed(2)}</strong>
+            </div>
+            <div className="small-card">
+              <p>Year selected</p>
+              <strong>{selectedMonth.slice(0, 4)}</strong>
             </div>
           </div>
         </motion.section>
 
-        <section className="dashboard-grid">
+        <section className="dashboard-grid entries-top-grid">
           <motion.article
             className="dashboard-panel"
             initial={{ opacity: 0, y: 18 }}
@@ -285,13 +493,13 @@ export default function EntriesPage() {
                   <CreditCard size={18} />
                 </div>
                 <div>
-                  <h3>Add income</h3>
-                  <p>Create income entries for any month</p>
+                  <h3>{editingIncomeId ? "Edit income" : "Add income"}</h3>
+                  <p>Create or update income entries</p>
                 </div>
               </div>
             </div>
 
-            <form onSubmit={handleAddIncome} className="dashboard-form">
+            <form onSubmit={handleAddOrUpdateIncome} className="dashboard-form">
               <div className="input-group">
                 <label>Title</label>
                 <div className="input-wrap">
@@ -332,9 +540,20 @@ export default function EntriesPage() {
                 </div>
               </div>
 
-              <button className="primary-button dashboard-submit" disabled={savingIncome}>
-                {savingIncome ? "Saving..." : "Add income"}
-              </button>
+              <div className="entries-form-actions">
+                <button className="primary-button dashboard-submit" disabled={savingIncome}>
+                  {savingIncome ? "Saving..." : editingIncomeId ? "Update income" : "Add income"}
+                </button>
+                {editingIncomeId ? (
+                  <button
+                    type="button"
+                    className="secondary-button entries-cancel-button"
+                    onClick={resetIncomeForm}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
             </form>
           </motion.article>
 
@@ -350,19 +569,19 @@ export default function EntriesPage() {
                   <PiggyBank size={18} />
                 </div>
                 <div>
-                  <h3>Add expense</h3>
-                  <p>Track expenses and assign categories</p>
+                  <h3>{editingExpenseId ? "Edit expense" : "Add expense"}</h3>
+                  <p>Track expenses with categories</p>
                 </div>
               </div>
             </div>
 
-            <form onSubmit={handleAddExpense} className="dashboard-form">
+            <form onSubmit={handleAddOrUpdateExpense} className="dashboard-form">
               <div className="input-group">
                 <label>Title</label>
                 <div className="input-wrap">
                   <input
                     type="text"
-                    placeholder="Rent, groceries, travel..."
+                    placeholder="Rent, groceries, transport..."
                     value={expenseTitle}
                     onChange={(e) => setExpenseTitle(e.target.value)}
                     required
@@ -373,12 +592,17 @@ export default function EntriesPage() {
               <div className="input-group">
                 <label>Category</label>
                 <div className="input-wrap">
-                  <input
-                    type="text"
-                    placeholder="Housing, food, transport..."
+                  <select
+                    className="entries-select"
                     value={expenseCategory}
                     onChange={(e) => setExpenseCategory(e.target.value)}
-                  />
+                  >
+                    {expenseCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -409,9 +633,20 @@ export default function EntriesPage() {
                 </div>
               </div>
 
-              <button className="primary-button dashboard-submit" disabled={savingExpense}>
-                {savingExpense ? "Saving..." : "Add expense"}
-              </button>
+              <div className="entries-form-actions">
+                <button className="primary-button dashboard-submit" disabled={savingExpense}>
+                  {savingExpense ? "Saving..." : editingExpenseId ? "Update expense" : "Add expense"}
+                </button>
+                {editingExpenseId ? (
+                  <button
+                    type="button"
+                    className="secondary-button entries-cancel-button"
+                    onClick={resetExpenseForm}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
             </form>
           </motion.article>
         </section>
@@ -440,12 +675,30 @@ export default function EntriesPage() {
                 <div className="dashboard-empty-state">No income entries for this month.</div>
               ) : (
                 incomeEntries.map((item) => (
-                  <div key={item.id} className="dashboard-activity-item">
+                  <div key={item.id} className="dashboard-activity-item entries-item-card">
                     <div>
                       <strong>{item.title}</strong>
                       <p>{item.entry_date}</p>
                     </div>
-                    <span className="income">+£{Number(item.amount).toFixed(2)}</span>
+                    <div className="entries-item-right">
+                      <span className="income">+£{Number(item.amount).toFixed(2)}</span>
+                      <div className="entries-item-actions">
+                        <button
+                          type="button"
+                          className="entries-icon-button"
+                          onClick={() => startEditIncome(item)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="entries-icon-button danger"
+                          onClick={() => handleDeleteIncome(item.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
@@ -475,12 +728,30 @@ export default function EntriesPage() {
                 <div className="dashboard-empty-state">No expense entries for this month.</div>
               ) : (
                 expenseEntries.map((item) => (
-                  <div key={item.id} className="dashboard-activity-item">
+                  <div key={item.id} className="dashboard-activity-item entries-item-card">
                     <div>
                       <strong>{item.title}</strong>
                       <p>{item.category || "General"} · {item.entry_date}</p>
                     </div>
-                    <span>-£{Number(item.amount).toFixed(2)}</span>
+                    <div className="entries-item-right">
+                      <span>-£{Number(item.amount).toFixed(2)}</span>
+                      <div className="entries-item-actions">
+                        <button
+                          type="button"
+                          className="entries-icon-button"
+                          onClick={() => startEditExpense(item)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="entries-icon-button danger"
+                          onClick={() => handleDeleteExpense(item.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
