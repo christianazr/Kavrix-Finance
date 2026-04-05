@@ -5,21 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
-import {
-  ArrowUpRight,
-  CreditCard,
+  ArrowRight,
   LogOut,
-  PiggyBank,
-  Plus,
   Receipt,
-  Target,
   TrendingUp,
   Wallet,
 } from "lucide-react";
@@ -33,30 +21,14 @@ type Entry = {
   category?: string | null;
 };
 
-type ProfileRow = {
-  full_name: string | null;
-};
-
 export default function DashboardPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-
   const [incomeEntries, setIncomeEntries] = useState<Entry[]>([]);
   const [expenseEntries, setExpenseEntries] = useState<Entry[]>([]);
-
-  const [incomeTitle, setIncomeTitle] = useState("");
-  const [incomeAmount, setIncomeAmount] = useState("");
-
-  const [expenseTitle, setExpenseTitle] = useState("");
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseCategory, setExpenseCategory] = useState("");
-
-  const [savingIncome, setSavingIncome] = useState(false);
-  const [savingExpense, setSavingExpense] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -79,17 +51,16 @@ export default function DashboardPage() {
           .from("income_entries")
           .select("id,title,amount,entry_date")
           .eq("user_id", currentUserId)
-          .order("entry_date", { ascending: true }),
+          .order("entry_date", { ascending: false }),
         supabase
           .from("expense_entries")
           .select("id,title,amount,entry_date,category")
           .eq("user_id", currentUserId)
-          .order("entry_date", { ascending: true }),
+          .order("entry_date", { ascending: false }),
       ]);
 
       if (!mounted) return;
 
-      setUserId(currentUserId);
       setEmail(session.user.email ?? "");
       setFullName(profileRes.data?.full_name ?? "");
       setIncomeEntries((incomeRes.data as Entry[]) ?? []);
@@ -128,100 +99,28 @@ export default function DashboardPage() {
     [expenseEntries]
   );
 
-  const totalSavings = Math.max(totalIncome - totalExpenses, 0);
   const balance = totalIncome - totalExpenses;
+  const savings = Math.max(balance, 0);
 
-  const monthlyData = useMemo(() => {
-    const monthMap = new Map<string, { name: string; income: number; expenses: number }>();
+  const latestMonthLabel = useMemo(() => {
+    const allDates = [...incomeEntries, ...expenseEntries]
+      .map((item) => item.entry_date)
+      .filter(Boolean);
 
-    for (const item of incomeEntries) {
-      const date = new Date(item.entry_date);
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      const name = date.toLocaleString("en-GB", { month: "short" });
-
-      if (!monthMap.has(key)) {
-        monthMap.set(key, { name, income: 0, expenses: 0 });
-      }
-
-      monthMap.get(key)!.income += Number(item.amount);
+    if (allDates.length === 0) {
+      return new Date().toLocaleString("en-GB", { month: "long", year: "numeric" });
     }
 
-    for (const item of expenseEntries) {
-      const date = new Date(item.entry_date);
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      const name = date.toLocaleString("en-GB", { month: "short" });
+    const latest = new Date(
+      allDates.sort((a, b) => +new Date(b) - +new Date(a))[0]
+    );
 
-      if (!monthMap.has(key)) {
-        monthMap.set(key, { name, income: 0, expenses: 0 });
-      }
-
-      monthMap.get(key)!.expenses += Number(item.amount);
-    }
-
-    return Array.from(monthMap.values()).slice(-6);
+    return latest.toLocaleString("en-GB", { month: "long", year: "numeric" });
   }, [incomeEntries, expenseEntries]);
-
-  const recentExpenses = useMemo(() => {
-    return [...expenseEntries]
-      .sort((a, b) => +new Date(b.entry_date) - +new Date(a.entry_date))
-      .slice(0, 4);
-  }, [expenseEntries]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/login");
-  };
-
-  const handleAddIncome = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userId || !incomeTitle.trim() || !incomeAmount) return;
-
-    setSavingIncome(true);
-
-    const { data, error } = await supabase
-      .from("income_entries")
-      .insert({
-        user_id: userId,
-        title: incomeTitle.trim(),
-        amount: Number(incomeAmount),
-      })
-      .select("id,title,amount,entry_date")
-      .single();
-
-    setSavingIncome(false);
-
-    if (error || !data) return;
-
-    setIncomeEntries((prev) => [...prev, data as Entry]);
-    setIncomeTitle("");
-    setIncomeAmount("");
-  };
-
-  const handleAddExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userId || !expenseTitle.trim() || !expenseAmount) return;
-
-    setSavingExpense(true);
-
-    const { data, error } = await supabase
-      .from("expense_entries")
-      .insert({
-        user_id: userId,
-        title: expenseTitle.trim(),
-        amount: Number(expenseAmount),
-        category: expenseCategory.trim() || null,
-      })
-      .select("id,title,amount,entry_date,category")
-      .single();
-
-    setSavingExpense(false);
-
-    if (error || !data) return;
-
-    setExpenseEntries((prev) => [...prev, data as Entry]);
-    setExpenseTitle("");
-    setExpenseAmount("");
-    setExpenseCategory("");
   };
 
   if (loading) {
@@ -253,9 +152,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="dashboard-header-actions">
-          <Link href="/" className="secondary-button">
-            View site
+          <Link href="/entries" className="primary-button">
+            Manage entries
+            <ArrowRight size={16} />
           </Link>
+
           <button className="secondary-button dashboard-logout" onClick={handleLogout}>
             <LogOut size={16} />
             Log out
@@ -274,8 +175,8 @@ export default function DashboardPage() {
             <span className="hero-badge">Your private finance overview</span>
             <h2>Welcome back, {firstName}.</h2>
             <p>
-              Track your real monthly flow, monitor expenses and build savings
-              with a cleaner, more premium financial workspace.
+              Track your monthly balance at a glance and keep your personal
+              finances in one clean, premium dashboard.
             </p>
 
             <div className="dashboard-user-card">
@@ -294,8 +195,8 @@ export default function DashboardPage() {
             transition={{ duration: 0.5, delay: 0.05 }}
           >
             <div className="dashboard-balance-top">
-              <span className="mini-label">Live overview</span>
-              <span className="mini-pill">Connected to Supabase</span>
+              <span className="mini-label">{latestMonthLabel}</span>
+              <span className="mini-pill">Overview only</span>
             </div>
 
             <p className="dashboard-balance-label">Available balance</p>
@@ -312,7 +213,7 @@ export default function DashboardPage() {
               </div>
               <div className="small-card">
                 <p>Savings</p>
-                <strong>£{totalSavings.toFixed(2)}</strong>
+                <strong>£{savings.toFixed(2)}</strong>
               </div>
               <div className="small-card">
                 <p>Entries</p>
@@ -324,7 +225,7 @@ export default function DashboardPage() {
 
         <section className="dashboard-grid">
           <motion.article
-            className="dashboard-panel dashboard-panel-large"
+            className="dashboard-panel"
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.1 }}
@@ -335,26 +236,29 @@ export default function DashboardPage() {
                   <TrendingUp size={18} />
                 </div>
                 <div>
-                  <h3>Cash flow</h3>
-                  <p>Income vs expenses over time</p>
+                  <h3>Overview</h3>
+                  <p>Your current finance snapshot</p>
                 </div>
               </div>
-              <span className="dashboard-link-chip">
-                Insights
-                <ArrowUpRight size={14} />
-              </span>
             </div>
 
-            <div className="chart-card">
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={monthlyData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94a3b8" />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="income" stroke="#d5b67a" fillOpacity={0.18} fill="#d5b67a" />
-                  <Area type="monotone" dataKey="expenses" stroke="#60a5fa" fillOpacity={0.12} fill="#60a5fa" />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="dashboard-metric-list">
+              <div className="dashboard-metric-row">
+                <span>Total income</span>
+                <strong>£{totalIncome.toFixed(2)}</strong>
+              </div>
+              <div className="dashboard-metric-row">
+                <span>Total expenses</span>
+                <strong>£{totalExpenses.toFixed(2)}</strong>
+              </div>
+              <div className="dashboard-metric-row">
+                <span>Net balance</span>
+                <strong>£{balance.toFixed(2)}</strong>
+              </div>
+              <div className="dashboard-metric-row">
+                <span>Total saved</span>
+                <strong>£{savings.toFixed(2)}</strong>
+              </div>
             </div>
           </motion.article>
 
@@ -370,150 +274,23 @@ export default function DashboardPage() {
                   <Receipt size={18} />
                 </div>
                 <div>
-                  <h3>Recent expenses</h3>
-                  <p>Your latest outgoing activity</p>
+                  <h3>Entries by month</h3>
+                  <p>Use the dedicated page to add and review movements</p>
                 </div>
               </div>
             </div>
 
-            <div className="dashboard-activity-list">
-              {recentExpenses.length === 0 ? (
-                <div className="dashboard-empty-state">No expenses yet.</div>
-              ) : (
-                recentExpenses.map((item) => (
-                  <div key={item.id} className="dashboard-activity-item">
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>{item.category || "General"}</p>
-                    </div>
-                    <span>-£{Number(item.amount).toFixed(2)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.article>
-
-          <motion.article
-            className="dashboard-panel"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.18 }}
-          >
-            <div className="dashboard-panel-head">
-              <div className="dashboard-panel-title">
-                <div className="feature-icon">
-                  <Plus size={18} />
-                </div>
-                <div>
-                  <h3>Add income</h3>
-                  <p>Create real entries in your account</p>
-                </div>
-              </div>
+            <div className="dashboard-empty-state">
+              Add new income and expenses in the separate entries page, where you
+              can also filter everything by month.
             </div>
 
-            <form onSubmit={handleAddIncome} className="dashboard-form">
-              <div className="input-group">
-                <label>Title</label>
-                <div className="input-wrap">
-                  <CreditCard size={18} />
-                  <input
-                    type="text"
-                    placeholder="Salary, freelance, bonus..."
-                    value={incomeTitle}
-                    onChange={(e) => setIncomeTitle(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="input-group">
-                <label>Amount</label>
-                <div className="input-wrap">
-                  <Wallet size={18} />
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={incomeAmount}
-                    onChange={(e) => setIncomeAmount(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <button className="primary-button dashboard-submit" disabled={savingIncome}>
-                {savingIncome ? "Saving..." : "Add income"}
-              </button>
-            </form>
-          </motion.article>
-
-          <motion.article
-            className="dashboard-panel"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.22 }}
-          >
-            <div className="dashboard-panel-head">
-              <div className="dashboard-panel-title">
-                <div className="feature-icon">
-                  <PiggyBank size={18} />
-                </div>
-                <div>
-                  <h3>Add expense</h3>
-                  <p>Track where your money goes</p>
-                </div>
-              </div>
+            <div style={{ marginTop: 16 }}>
+              <Link href="/entries" className="primary-button">
+                Open entries page
+                <ArrowRight size={16} />
+              </Link>
             </div>
-
-            <form onSubmit={handleAddExpense} className="dashboard-form">
-              <div className="input-group">
-                <label>Title</label>
-                <div className="input-wrap">
-                  <Receipt size={18} />
-                  <input
-                    type="text"
-                    placeholder="Rent, groceries, transport..."
-                    value={expenseTitle}
-                    onChange={(e) => setExpenseTitle(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="input-group">
-                <label>Category</label>
-                <div className="input-wrap">
-                  <Target size={18} />
-                  <input
-                    type="text"
-                    placeholder="Housing, food, travel..."
-                    value={expenseCategory}
-                    onChange={(e) => setExpenseCategory(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="input-group">
-                <label>Amount</label>
-                <div className="input-wrap">
-                  <Wallet size={18} />
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={expenseAmount}
-                    onChange={(e) => setExpenseAmount(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <button className="primary-button dashboard-submit" disabled={savingExpense}>
-                {savingExpense ? "Saving..." : "Add expense"}
-              </button>
-            </form>
           </motion.article>
         </section>
       </section>
