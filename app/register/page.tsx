@@ -32,22 +32,30 @@ export default function RegisterPage() {
       },
     });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       setError(error.message);
       return;
     }
 
-    const hasSession = !!data.session;
+    const userId = data.user?.id;
 
-    if (hasSession) {
+    if (userId) {
+      await supabase.from("profiles").upsert({
+        id: userId,
+        full_name: fullName,
+      });
+    }
+
+    setLoading(false);
+
+    if (data.session) {
       router.replace("/dashboard");
       router.refresh();
       return;
     }
 
-    setSuccess("Account created. Check your email to confirm your account, then log in.");
+    setSuccess("Account created. Check your email to confirm your account.");
   };
 
   return (
