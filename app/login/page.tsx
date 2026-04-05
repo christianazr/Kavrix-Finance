@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, ArrowRight, Wallet } from "lucide-react";
+import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { ArrowRight, Lock, Mail, Wallet } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,10 +14,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -31,40 +31,58 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/dashboard");
+    router.push("/dashboard");
+    router.refresh();
   };
 
   return (
-    <main className="min-h-screen bg-[#06070a] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(92,119,255,0.16),transparent_35%)] pointer-events-none" />
+    <main className="auth-page">
+      <div className="auth-bg" />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-2xl">
-          <Link href="/" className="mb-8 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10">
-              <Wallet className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm text-white/50">Welcome back</p>
-              <h1 className="text-xl font-semibold">Kavrix Finance</h1>
-            </div>
-          </Link>
+      <header className="auth-header">
+        <Link href="/" className="brand auth-brand">
+          <div className="brand-icon">
+            <Wallet size={18} />
+          </div>
+          <div>
+            <p className="brand-kicker">Welcome back</p>
+            <h1>Kavrix Finance</h1>
+          </div>
+        </Link>
+      </header>
 
-          <div className="mb-8">
-            <h2 className="text-3xl font-semibold tracking-tight">Log in</h2>
-            <p className="mt-2 text-sm text-white/60">
-              Access your premium budgeting dashboard.
+      <section className="auth-shell">
+        <div className="auth-copy">
+          <span className="hero-badge">Private access to your premium dashboard</span>
+          <h2>Log in</h2>
+          <p>
+            Access your premium budgeting dashboard and continue tracking your
+            monthly finances with clarity.
+          </p>
+
+          <div className="auth-copy-card">
+            <h3>Elegant finance, simplified</h3>
+            <p>
+              Keep your income, recurring costs and monthly spending in one
+              refined space designed to feel fast and effortless.
             </p>
           </div>
+        </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-white/50" />
+        <div className="auth-card">
+          <div className="auth-card-top">
+            <span className="mini-label">Secure sign in</span>
+            <span className="mini-pill">Premium access</span>
+          </div>
+
+          <form onSubmit={handleLogin} className="auth-form">
+            <div className="input-group">
+              <label>Email address</label>
+              <div className="input-wrap">
+                <Mail size={18} />
                 <input
                   type="email"
-                  placeholder="Email address"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-white/35"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -72,13 +90,13 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Lock className="h-4 w-4 text-white/50" />
+            <div className="input-group">
+              <label>Password</label>
+              <div className="input-wrap">
+                <Lock size={18} />
                 <input
                   type="password"
-                  placeholder="Password"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-white/35"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -86,30 +104,20 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {error ? (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                {error}
-              </div>
-            ) : null}
+            {error ? <p className="auth-error">{error}</p> : null}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:scale-[1.01] disabled:opacity-60"
-            >
-              {loading ? "Signing in..." : "Log in"}
-              <ArrowRight className="h-4 w-4" />
+            <button type="submit" className="primary-button auth-submit" disabled={loading}>
+              {loading ? "Logging in..." : "Log in"}
+              {!loading && <ArrowRight size={18} />}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-white/55">
+          <p className="auth-switch">
             Don’t have an account?{" "}
-            <Link href="/register" className="font-medium text-white">
-              Create one
-            </Link>
+            <Link href="/register">Create one</Link>
           </p>
         </div>
-      </div>
+      </section>
     </main>
   );
 }
