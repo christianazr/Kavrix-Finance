@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, User, ArrowRight, Wallet } from "lucide-react";
+import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { ArrowRight, Lock, Mail, User, Wallet } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -14,11 +14,13 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setSuccess("");
+    setLoading(true);
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -37,40 +39,61 @@ export default function RegisterPage() {
       return;
     }
 
-    router.replace("/dashboard");
+    setSuccess("Account created successfully. You can now log in.");
+    setTimeout(() => {
+      router.push("/login");
+      router.refresh();
+    }, 1200);
   };
 
   return (
-    <main className="min-h-screen bg-[#06070a] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(92,119,255,0.16),transparent_35%)] pointer-events-none" />
+    <main className="auth-page">
+      <div className="auth-bg" />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-2xl">
-          <Link href="/" className="mb-8 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10">
-              <Wallet className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm text-white/50">Create your account</p>
-              <h1 className="text-xl font-semibold">Kavrix Finance</h1>
-            </div>
-          </Link>
+      <header className="auth-header">
+        <Link href="/" className="brand auth-brand">
+          <div className="brand-icon">
+            <Wallet size={18} />
+          </div>
+          <div>
+            <p className="brand-kicker">Create your account</p>
+            <h1>Kavrix Finance</h1>
+          </div>
+        </Link>
+      </header>
 
-          <div className="mb-8">
-            <h2 className="text-3xl font-semibold tracking-tight">Get started</h2>
-            <p className="mt-2 text-sm text-white/60">
-              Open your private budgeting space in seconds.
+      <section className="auth-shell">
+        <div className="auth-copy">
+          <span className="hero-badge">Open your private budgeting space</span>
+          <h2>Get started</h2>
+          <p>
+            Create your account in seconds and start organising your monthly
+            income, savings and spending in one premium dashboard.
+          </p>
+
+          <div className="auth-copy-card">
+            <h3>Built for clarity</h3>
+            <p>
+              A clean, modern budgeting experience with a refined interface,
+              secure access and a premium visual feel from the first screen.
             </p>
           </div>
+        </div>
 
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <User className="h-4 w-4 text-white/50" />
+        <div className="auth-card">
+          <div className="auth-card-top">
+            <span className="mini-label">New account</span>
+            <span className="mini-pill">Fast setup</span>
+          </div>
+
+          <form onSubmit={handleRegister} className="auth-form">
+            <div className="input-group">
+              <label>Full name</label>
+              <div className="input-wrap">
+                <User size={18} />
                 <input
                   type="text"
-                  placeholder="Full name"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-white/35"
+                  placeholder="Your full name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
@@ -78,13 +101,13 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-white/50" />
+            <div className="input-group">
+              <label>Email address</label>
+              <div className="input-wrap">
+                <Mail size={18} />
                 <input
                   type="email"
-                  placeholder="Email address"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-white/35"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -92,13 +115,13 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Lock className="h-4 w-4 text-white/50" />
+            <div className="input-group">
+              <label>Password</label>
+              <div className="input-wrap">
+                <Lock size={18} />
                 <input
                   type="password"
-                  placeholder="Password"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-white/35"
+                  placeholder="Create a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -106,30 +129,21 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {error ? (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                {error}
-              </div>
-            ) : null}
+            {error ? <p className="auth-error">{error}</p> : null}
+            {success ? <p className="auth-success">{success}</p> : null}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:scale-[1.01] disabled:opacity-60"
-            >
+            <button type="submit" className="primary-button auth-submit" disabled={loading}>
               {loading ? "Creating account..." : "Create account"}
-              <ArrowRight className="h-4 w-4" />
+              {!loading && <ArrowRight size={18} />}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-white/55">
+          <p className="auth-switch">
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-white">
-              Log in
-            </Link>
+            <Link href="/login">Log in</Link>
           </p>
         </div>
-      </div>
+      </section>
     </main>
   );
 }
