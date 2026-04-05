@@ -1,4 +1,22 @@
 "use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import {
+  BudgetItem,
+  calculateBudgetTotals,
+  formatCurrency,
+  MonthlyBudget,
+} from "@/lib/helpers";
+
+export default function BudgetList() {
+  const [budgets, setBudgets] = useState<MonthlyBudget[]>([]);
+  const [itemsMap, setItemsMap] = useState<Record<string, BudgetItem[]>>({});
+  const [loading, setLoading] = useState(true);
+
+  const fetchBudgets = async () => {
+    setLoading(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -8,22 +26,33 @@
       return;
     }
 
-    const { data: budgetsData } = await supabase
+    const { data: budgetsData, error: budgetsError } = await supabase
       .from("monthly_budgets")
       .select("*")
       .eq("user_id", user.id)
       .order("year", { ascending: false });
 
-    const { data: itemsData } = await supabase
+    const { data: itemsData, error: itemsError } = await supabase
       .from("budget_items")
       .select("*")
       .eq("user_id", user.id);
 
+    if (budgetsError) {
+      console.error("Error loading budgets:", budgetsError.message);
+    }
+
+    if (itemsError) {
+      console.error("Error loading budget items:", itemsError.message);
+    }
+
     const grouped: Record<string, BudgetItem[]> = {};
 
     (itemsData || []).forEach((item) => {
-      if (!grouped[item.budget_id]) grouped[item.budget_id] = [];
-      grouped[item.budget_id].push(item as BudgetItem);
+      const typedItem = item as BudgetItem;
+      if (!grouped[typedItem.budget_id]) {
+        grouped[typedItem.budget_id] = [];
+      }
+      grouped[typedItem.budget_id].push(typedItem);
     });
 
     setBudgets((budgetsData || []) as MonthlyBudget[]);
@@ -40,7 +69,11 @@
   }
 
   if (!budgets.length) {
-    return <div className="glass rounded-3xl p-5 text-white/65">No budgets yet. Create your first monthly budget above.</div>;
+    return (
+      <div className="glass rounded-3xl p-5 text-white/65">
+        No budgets yet. Create your first monthly budget above.
+      </div>
+    );
   }
 
   return (
@@ -56,12 +89,16 @@
                 <h3 className="text-lg font-semibold">
                   {budget.month} {budget.year}
                 </h3>
-                <p className="mt-1 text-sm text-white/55">Income, fixed expenses, variable expenses and net balance.</p>
+                <p className="mt-1 text-sm text-white/55">
+                  Income, fixed expenses, variable expenses and net balance.
+                </p>
               </div>
 
               <div
                 className={`rounded-full px-4 py-2 text-sm font-medium ${
-                  totals.balance >= 0 ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"
+                  totals.balance >= 0
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-red-500/15 text-red-300"
                 }`}
               >
                 {totals.balance >= 0 ? "Positive balance" : "Negative balance"}
@@ -71,19 +108,30 @@
             <div className="mt-5 grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-xs text-white/55">Income</p>
-                <p className="mt-2 text-lg font-semibold">{formatCurrency(totals.income)}</p>
+                <p className="mt-2 text-lg font-semibold">
+                  {formatCurrency(totals.income)}
+                </p>
               </div>
+
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-xs text-white/55">Fixed expenses</p>
-                <p className="mt-2 text-lg font-semibold">{formatCurrency(totals.fixed)}</p>
+                <p className="mt-2 text-lg font-semibold">
+                  {formatCurrency(totals.fixed)}
+                </p>
               </div>
+
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-xs text-white/55">Variable expenses</p>
-                <p className="mt-2 text-lg font-semibold">{formatCurrency(totals.variable)}</p>
+                <p className="mt-2 text-lg font-semibold">
+                  {formatCurrency(totals.variable)}
+                </p>
               </div>
+
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-xs text-white/55">Balance</p>
-                <p className="mt-2 text-lg font-semibold">{formatCurrency(totals.balance)}</p>
+                <p className="mt-2 text-lg font-semibold">
+                  {formatCurrency(totals.balance)}
+                </p>
               </div>
             </div>
           </div>
