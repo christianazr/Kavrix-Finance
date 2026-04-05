@@ -1,13 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 import {
   ArrowUpRight,
   CreditCard,
   LogOut,
   PiggyBank,
+  Plus,
   Receipt,
   Target,
   TrendingUp,
@@ -15,38 +25,79 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-type Profile = {
-  full_name?: string;
+type Entry = {
+  id: string;
+  title: string;
+  amount: number;
+  entry_date: string;
+  category?: string | null;
+};
+
+type ProfileRow = {
+  full_name: string | null;
 };
 
 export default function DashboardPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+
+  const [incomeEntries, setIncomeEntries] = useState<Entry[]>([]);
+  const [expenseEntries, setExpenseEntries] = useState<Entry[]>([]);
+
+  const [incomeTitle, setIncomeTitle] = useState("");
+  const [incomeAmount, setIncomeAmount] = useState("");
+
+  const [expenseTitle, setExpenseTitle] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("");
+
+  const [savingIncome, setSavingIncome] = useState(false);
+  const [savingExpense, setSavingExpense] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadUser = async () => {
+    const loadData = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-
-      if (!mounted) return;
 
       if (!session?.user) {
         router.replace("/login");
         return;
       }
 
+      const currentUserId = session.user.id;
+
+      const [profileRes, incomeRes, expenseRes] = await Promise.all([
+        supabase.from("profiles").select("full_name").eq("id", currentUserId).maybeSingle(),
+        supabase
+          .from("income_entries")
+          .select("id,title,amount,entry_date")
+          .eq("user_id", currentUserId)
+          .order("entry_date", { ascending: true }),
+        supabase
+          .from("expense_entries")
+          .select("id,title,amount,entry_date,category")
+          .eq("user_id", currentUserId)
+          .order("entry_date", { ascending: true }),
+      ]);
+
+      if (!mounted) return;
+
+      setUserId(currentUserId);
       setEmail(session.user.email ?? "");
-      setFullName((session.user.user_metadata as Profile | undefined)?.full_name ?? "");
+      setFullName(profileRes.data?.full_name ?? "");
+      setIncomeEntries((incomeRes.data as Entry[]) ?? []);
+      setExpenseEntries((expenseRes.data as Entry[]) ?? []);
       setLoading(false);
     };
 
-    loadUser();
+    loadData();
 
     const {
       data: { subscription },
@@ -67,10 +118,110 @@ export default function DashboardPage() {
     return fullName.split(" ")[0];
   }, [fullName]);
 
+  const totalIncome = useMemo(
+    () => incomeEntries.reduce((sum, item) => sum + Number(item.amount), 0),
+    [incomeEntries]
+  );
+
+  const totalExpenses = useMemo(
+    () => expenseEntries.reduce((sum, item) => sum + Number(item.amount), 0),
+    [expenseEntries]
+  );
+
+  const totalSavings = Math.max(totalIncome - totalExpenses, 0);
+  const balance = totalIncome - totalExpenses;
+
+  const monthlyData = useMemo(() => {
+    const monthMap = new Map<string, { name: string; income: number; expenses: number }>();
+
+    for (const item of incomeEntries) {
+      const date = new Date(item.entry_date);
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const name = date.toLocaleString("en-GB", { month: "short" });
+
+      if (!monthMap.has(key)) {
+        monthMap.set(key, { name, income: 0, expenses: 0 });
+      }
+
+      monthMap.get(key)!.income += Number(item.amount);
+    }
+
+    for (const item of expenseEntries) {
+      const date = new Date(item.entry_date);
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const name = date.toLocaleString("en-GB", { month: "short" });
+
+      if (!monthMap.has(key)) {
+        monthMap.set(key, { name, income: 0, expenses: 0 });
+      }
+
+      monthMap.get(key)!.expenses += Number(item.amount);
+    }
+
+    return Array.from(monthMap.values()).slice(-6);
+  }, [incomeEntries, expenseEntries]);
+
+  const recentExpenses = useMemo(() => {
+    return [...expenseEntries]
+      .sort((a, b) => +new Date(b.entry_date) - +new Date(a.entry_date))
+      .slice(0, 4);
+  }, [expenseEntries]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/login");
-    router.refresh();
+  };
+
+  const handleAddIncome = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId || !incomeTitle.trim() || !incomeAmount) return;
+
+    setSavingIncome(true);
+
+    const { data, error } = await supabase
+      .from("income_entries")
+      .insert({
+        user_id: userId,
+        title: incomeTitle.trim(),
+        amount: Number(incomeAmount),
+      })
+      .select("id,title,amount,entry_date")
+      .single();
+
+    setSavingIncome(false);
+
+    if (error || !data) return;
+
+    setIncomeEntries((prev) => [...prev, data as Entry]);
+    setIncomeTitle("");
+    setIncomeAmount("");
+  };
+
+  const handleAddExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId || !expenseTitle.trim() || !expenseAmount) return;
+
+    setSavingExpense(true);
+
+    const { data, error } = await supabase
+      .from("expense_entries")
+      .insert({
+        user_id: userId,
+        title: expenseTitle.trim(),
+        amount: Number(expenseAmount),
+        category: expenseCategory.trim() || null,
+      })
+      .select("id,title,amount,entry_date,category")
+      .single();
+
+    setSavingExpense(false);
+
+    if (error || !data) return;
+
+    setExpenseEntries((prev) => [...prev, data as Entry]);
+    setExpenseTitle("");
+    setExpenseAmount("");
+    setExpenseCategory("");
   };
 
   if (loading) {
@@ -114,12 +265,17 @@ export default function DashboardPage() {
 
       <section className="dashboard-shell">
         <section className="dashboard-hero">
-          <div className="dashboard-hero-copy">
+          <motion.div
+            className="dashboard-hero-copy"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45 }}
+          >
             <span className="hero-badge">Your private finance overview</span>
             <h2>Welcome back, {firstName}.</h2>
             <p>
-              Track your monthly flow, keep recurring costs under control and
-              stay on top of your financial balance with a refined dashboard.
+              Track your real monthly flow, monitor expenses and build savings
+              with a cleaner, more premium financial workspace.
             </p>
 
             <div className="dashboard-user-card">
@@ -129,197 +285,236 @@ export default function DashboardPage() {
               </div>
               <div className="dashboard-user-chip">Secure session</div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="dashboard-balance-card">
+          <motion.div
+            className="dashboard-balance-card"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.05 }}
+          >
             <div className="dashboard-balance-top">
-              <span className="mini-label">April 2026 overview</span>
-              <span className="mini-pill">Premium dashboard</span>
+              <span className="mini-label">Live overview</span>
+              <span className="mini-pill">Connected to Supabase</span>
             </div>
 
             <p className="dashboard-balance-label">Available balance</p>
-            <h3>£3,420</h3>
+            <h3>£{balance.toFixed(2)}</h3>
 
             <div className="dashboard-balance-grid">
               <div className="small-card">
                 <p>Income</p>
-                <strong>£4,860</strong>
+                <strong>£{totalIncome.toFixed(2)}</strong>
               </div>
               <div className="small-card">
                 <p>Expenses</p>
-                <strong>£1,440</strong>
+                <strong>£{totalExpenses.toFixed(2)}</strong>
               </div>
               <div className="small-card">
                 <p>Savings</p>
-                <strong>£950</strong>
+                <strong>£{totalSavings.toFixed(2)}</strong>
               </div>
               <div className="small-card">
-                <p>Left to assign</p>
-                <strong>£1,470</strong>
+                <p>Entries</p>
+                <strong>{incomeEntries.length + expenseEntries.length}</strong>
               </div>
             </div>
-
-            <div className="progress-panel">
-              <div className="progress-row">
-                <span>Monthly budget health</span>
-                <span>82%</span>
-              </div>
-              <div className="progress-bar">
-                <div className="progress-fill" />
-              </div>
-            </div>
-          </div>
+          </motion.div>
         </section>
 
         <section className="dashboard-grid">
-          <article className="dashboard-panel">
+          <motion.article
+            className="dashboard-panel dashboard-panel-large"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+          >
             <div className="dashboard-panel-head">
               <div className="dashboard-panel-title">
                 <div className="feature-icon">
                   <TrendingUp size={18} />
                 </div>
                 <div>
-                  <h3>Overview</h3>
-                  <p>Your core monthly financial snapshot</p>
+                  <h3>Cash flow</h3>
+                  <p>Income vs expenses over time</p>
                 </div>
               </div>
               <span className="dashboard-link-chip">
-                Details
+                Insights
                 <ArrowUpRight size={14} />
               </span>
             </div>
 
-            <div className="dashboard-metric-list">
-              <div className="dashboard-metric-row">
-                <span>Monthly income</span>
-                <strong>£4,860</strong>
-              </div>
-              <div className="dashboard-metric-row">
-                <span>Fixed costs</span>
-                <strong>£1,920</strong>
-              </div>
-              <div className="dashboard-metric-row">
-                <span>Variable spending</span>
-                <strong>£1,140</strong>
-              </div>
-              <div className="dashboard-metric-row">
-                <span>Savings allocated</span>
-                <strong>£950</strong>
-              </div>
+            <div className="chart-card">
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={monthlyData}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
+                  <XAxis dataKey="name" stroke="#94a3b8" />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="income" stroke="#d5b67a" fillOpacity={0.18} fill="#d5b67a" />
+                  <Area type="monotone" dataKey="expenses" stroke="#60a5fa" fillOpacity={0.12} fill="#60a5fa" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-          </article>
+          </motion.article>
 
-          <article className="dashboard-panel">
+          <motion.article
+            className="dashboard-panel"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.14 }}
+          >
             <div className="dashboard-panel-head">
               <div className="dashboard-panel-title">
                 <div className="feature-icon">
                   <Receipt size={18} />
                 </div>
                 <div>
-                  <h3>Recent activity</h3>
-                  <p>Latest transactions and outgoing costs</p>
+                  <h3>Recent expenses</h3>
+                  <p>Your latest outgoing activity</p>
                 </div>
               </div>
             </div>
 
             <div className="dashboard-activity-list">
-              <div className="dashboard-activity-item">
-                <div>
-                  <strong>Rent</strong>
-                  <p>Monthly housing cost</p>
-                </div>
-                <span>-£1,250</span>
-              </div>
-
-              <div className="dashboard-activity-item">
-                <div>
-                  <strong>Groceries</strong>
-                  <p>Weekly household spend</p>
-                </div>
-                <span>-£96</span>
-              </div>
-
-              <div className="dashboard-activity-item">
-                <div>
-                  <strong>Salary</strong>
-                  <p>Main monthly income</p>
-                </div>
-                <span className="income">+£3,980</span>
-              </div>
+              {recentExpenses.length === 0 ? (
+                <div className="dashboard-empty-state">No expenses yet.</div>
+              ) : (
+                recentExpenses.map((item) => (
+                  <div key={item.id} className="dashboard-activity-item">
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p>{item.category || "General"}</p>
+                    </div>
+                    <span>-£{Number(item.amount).toFixed(2)}</span>
+                  </div>
+                ))
+              )}
             </div>
-          </article>
+          </motion.article>
 
-          <article className="dashboard-panel">
+          <motion.article
+            className="dashboard-panel"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.18 }}
+          >
             <div className="dashboard-panel-head">
               <div className="dashboard-panel-title">
                 <div className="feature-icon">
-                  <Target size={18} />
+                  <Plus size={18} />
                 </div>
                 <div>
-                  <h3>Goals</h3>
-                  <p>What you are currently building toward</p>
+                  <h3>Add income</h3>
+                  <p>Create real entries in your account</p>
                 </div>
               </div>
             </div>
 
-            <div className="dashboard-goals">
-              <div className="dashboard-goal-card">
-                <div className="dashboard-goal-top">
-                  <span>Emergency fund</span>
-                  <strong>68%</strong>
-                </div>
-                <div className="progress-bar">
-                  <div className="progress-fill dashboard-fill-68" />
+            <form onSubmit={handleAddIncome} className="dashboard-form">
+              <div className="input-group">
+                <label>Title</label>
+                <div className="input-wrap">
+                  <CreditCard size={18} />
+                  <input
+                    type="text"
+                    placeholder="Salary, freelance, bonus..."
+                    value={incomeTitle}
+                    onChange={(e) => setIncomeTitle(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
 
-              <div className="dashboard-goal-card">
-                <div className="dashboard-goal-top">
-                  <span>Travel fund</span>
-                  <strong>41%</strong>
-                </div>
-                <div className="progress-bar">
-                  <div className="progress-fill dashboard-fill-41" />
+              <div className="input-group">
+                <label>Amount</label>
+                <div className="input-wrap">
+                  <Wallet size={18} />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={incomeAmount}
+                    onChange={(e) => setIncomeAmount(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
-            </div>
-          </article>
 
-          <article className="dashboard-panel">
+              <button className="primary-button dashboard-submit" disabled={savingIncome}>
+                {savingIncome ? "Saving..." : "Add income"}
+              </button>
+            </form>
+          </motion.article>
+
+          <motion.article
+            className="dashboard-panel"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.22 }}
+          >
             <div className="dashboard-panel-head">
               <div className="dashboard-panel-title">
                 <div className="feature-icon">
                   <PiggyBank size={18} />
                 </div>
                 <div>
-                  <h3>Quick actions</h3>
-                  <p>Shortcuts for your next steps</p>
+                  <h3>Add expense</h3>
+                  <p>Track where your money goes</p>
                 </div>
               </div>
             </div>
 
-            <div className="dashboard-actions-grid">
-              <button className="dashboard-action-card">
-                <CreditCard size={18} />
-                <span>Add expense</span>
-              </button>
+            <form onSubmit={handleAddExpense} className="dashboard-form">
+              <div className="input-group">
+                <label>Title</label>
+                <div className="input-wrap">
+                  <Receipt size={18} />
+                  <input
+                    type="text"
+                    placeholder="Rent, groceries, transport..."
+                    value={expenseTitle}
+                    onChange={(e) => setExpenseTitle(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
-              <button className="dashboard-action-card">
-                <Wallet size={18} />
-                <span>Add income</span>
-              </button>
+              <div className="input-group">
+                <label>Category</label>
+                <div className="input-wrap">
+                  <Target size={18} />
+                  <input
+                    type="text"
+                    placeholder="Housing, food, travel..."
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                  />
+                </div>
+              </div>
 
-              <button className="dashboard-action-card">
-                <Target size={18} />
-                <span>Create goal</span>
-              </button>
+              <div className="input-group">
+                <label>Amount</label>
+                <div className="input-wrap">
+                  <Wallet size={18} />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={expenseAmount}
+                    onChange={(e) => setExpenseAmount(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
-              <button className="dashboard-action-card">
-                <Receipt size={18} />
-                <span>View budget</span>
+              <button className="primary-button dashboard-submit" disabled={savingExpense}>
+                {savingExpense ? "Saving..." : "Add expense"}
               </button>
-            </div>
-          </article>
+            </form>
+          </motion.article>
         </section>
       </section>
     </main>
