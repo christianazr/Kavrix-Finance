@@ -1,8 +1,18 @@
 "use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -25,8 +35,12 @@
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="glass w-full max-w-md rounded-[32px] p-6 md:p-8">
         <p className="text-sm uppercase tracking-[0.2em] text-white/45">Welcome back</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">Log in to Kavrix Finance</h1>
-        <p className="mt-2 text-sm text-white/60">Access your budgets, track your balance and stay in control.</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+          Log in to Kavrix Finance
+        </h1>
+        <p className="mt-2 text-sm text-white/60">
+          Access your budgets, track your balance and stay in control.
+        </p>
 
         <form onSubmit={handleLogin} className="mt-8 space-y-4">
           <input
@@ -37,6 +51,7 @@
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-white/35"
             required
           />
+
           <input
             type="password"
             placeholder="Password"
