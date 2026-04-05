@@ -22,7 +22,7 @@ export default function RegisterPage() {
     setSuccess("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -39,11 +39,15 @@ export default function RegisterPage() {
       return;
     }
 
-    setSuccess("Account created successfully. You can now log in.");
-    setTimeout(() => {
-      router.push("/login");
+    const hasSession = !!data.session;
+
+    if (hasSession) {
+      router.replace("/dashboard");
       router.refresh();
-    }, 1200);
+      return;
+    }
+
+    setSuccess("Account created. Check your email to confirm your account, then log in.");
   };
 
   return (
@@ -74,8 +78,8 @@ export default function RegisterPage() {
           <div className="auth-copy-card">
             <h3>Built for clarity</h3>
             <p>
-              A clean, modern budgeting experience with a refined interface,
-              secure access and a premium visual feel from the first screen.
+              A clean, modern budgeting experience with secure access and a
+              refined visual feel from the very first screen.
             </p>
           </div>
         </div>
@@ -125,6 +129,7 @@ export default function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={6}
                 />
               </div>
             </div>
@@ -139,8 +144,7 @@ export default function RegisterPage() {
           </form>
 
           <p className="auth-switch">
-            Already have an account?{" "}
-            <Link href="/login">Log in</Link>
+            Already have an account? <Link href="/login">Log in</Link>
           </p>
         </div>
       </section>
