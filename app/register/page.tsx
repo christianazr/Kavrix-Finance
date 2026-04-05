@@ -1,4 +1,26 @@
 "use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
     }
 
     setLoading(true);
@@ -7,7 +29,9 @@
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        data: {
+          full_name: fullName,
+        },
       },
     });
 
@@ -18,13 +42,17 @@
     }
 
     if (data.user) {
-      await supabase.from("profiles").upsert([
+      const { error: profileError } = await supabase.from("profiles").upsert([
         {
           id: data.user.id,
           full_name: fullName,
           email,
         },
       ]);
+
+      if (profileError) {
+        console.error("Profile upsert error:", profileError.message);
+      }
     }
 
     router.replace("/dashboard");
@@ -34,8 +62,12 @@
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="glass w-full max-w-md rounded-[32px] p-6 md:p-8">
         <p className="text-sm uppercase tracking-[0.2em] text-white/45">Create account</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">Join Kavrix Finance</h1>
-        <p className="mt-2 text-sm text-white/60">Start building smarter monthly budgets with a premium experience.</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+          Join Kavrix Finance
+        </h1>
+        <p className="mt-2 text-sm text-white/60">
+          Start building smarter monthly budgets with a premium experience.
+        </p>
 
         <form onSubmit={handleRegister} className="mt-8 space-y-4">
           <input
@@ -46,6 +78,7 @@
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-white/35"
             required
           />
+
           <input
             type="email"
             placeholder="Email"
@@ -54,6 +87,7 @@
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-white/35"
             required
           />
+
           <input
             type="password"
             placeholder="Password"
@@ -62,6 +96,7 @@
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none placeholder:text-white/35"
             required
           />
+
           <input
             type="password"
             placeholder="Confirm password"
