@@ -990,3 +990,155 @@ input {
 .entries-month-picker .input-wrap input {
   min-width: 0;
 }
+.entries-filter-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.entries-month-picker {
+  max-width: 220px;
+}
+
+.entries-month-picker .input-wrap input {
+  min-width: 0;
+}
+
+.entries-year-summary {
+  margin-top: 14px;
+}
+
+.entries-form-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.entries-cancel-button {
+  min-width: 120px;
+}
+
+.entries-select {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: white;
+  font-size: 15px;
+  appearance: none;
+}
+
+.entries-select option {
+  background: #0a1022;
+  color: white;
+}
+
+.entries-item-card {
+  align-items: center;
+}
+
+.entries-item-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.entries-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.entries-icon-button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  color: white;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.entries-icon-button:hover {
+  transform: translateY(-1px);
+}
+
+.entries-icon-button.danger {
+  color: #fca5a5;
+}
+
+@media (max-width: 720px) {
+  .dashboard-header-actions {
+    width: 100%;
+  }
+
+  .dashboard-header-actions .primary-button,
+  .dashboard-header-actions .secondary-button {
+    width: 100%;
+  }
+
+  .entries-filter-row {
+    flex-direction: column;
+  }
+
+  .entries-month-picker {
+    max-width: 100%;
+  }
+
+  .entries-form-actions {
+    flex-direction: column;
+  }
+
+  .entries-cancel-button,
+  .dashboard-submit {
+    width: 100%;
+  }
+
+  .entries-item-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .entries-item-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dashboard-activity-item {
+    align-items: flex-start;
+  }
+
+  .small-card strong {
+    font-size: 18px;
+  }
+
+  .brand {
+    align-items: flex-start;
+  }
+
+  .brand h1 {
+    line-height: 1.1;
+  }
+
+  .dashboard-panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-user-card {
+    padding: 16px;
+  }
+
+  .input-wrap {
+    height: 52px;
+  }
+
+  .hero-badge {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
