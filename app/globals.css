@@ -326,3 +326,124 @@ a {
     padding: 20px 16px;
   }
 }
+/* ===============================
+   FIX SPACING PREMIUM
+================================ */
+
+/* HEADER NAV */
+.landing-nav {
+  display: flex;
+  align-items: center;
+  gap: 18px; /* 🔥 separación entre Log in / Create account */
+}
+
+/* HERO CARD TOP */
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  gap: 12px; /* 🔥 evita textos pegados */
+}
+
+/* MINI ELEMENTS */
+.mini-label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.mini-pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+
+/* STAT BLOCK */
+.stat-block {
+  margin-bottom: 28px;
+}
+
+.stat-block h3 {
+  margin-top: 6px;
+}
+
+/* GRID CARDS */
+.small-card {
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+}
+
+.small-card p {
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+
+/* PROGRESS SECTION */
+.progress-panel {
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+}
+
+.progress-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+/* FORM SPACING */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* 🔥 más aire entre inputs */
+}
+
+/* INPUT */
+.input-group {
+  gap: 8px;
+}
+
+/* BUTTON */
+.auth-submit {
+  margin-top: 10px;
+  padding: 16px;
+  font-size: 15px;
+}
+
+/* SWITCH TEXT */
+.auth-switch {
+  margin-top: 24px;
+}
+
+/* CARD SPACING */
+.auth-card {
+  padding: 32px; /* 🔥 más premium */
+}
+
+/* HERO ACTIONS */
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+/* NAV BUTTON FIX */
+.nav-button {
+  padding: 12px 20px;
+}
+
+/* MOBILE FIX */
+@media (max-width: 720px) {
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .landing-nav {
+    gap: 10px;
+  }
+}
