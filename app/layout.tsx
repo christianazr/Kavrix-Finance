@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Kavrix Finance",
-  description: "Premium monthly budgeting app",
+  description: "Premium finance app",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-[#0a0a0f] text-white antialiased">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
