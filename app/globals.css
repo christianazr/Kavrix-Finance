@@ -977,3 +977,16 @@ input {
     grid-column: span 1;
   }
 }
+.entries-filter-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.entries-month-picker {
+  max-width: 220px;
+}
+
+.entries-month-picker .input-wrap input {
+  min-width: 0;
+}
